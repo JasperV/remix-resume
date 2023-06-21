@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 import type { V2_MetaFunction } from '@remix-run/cloudflare';
 import type { editor } from 'monaco-editor';
 import type { MutableRefObject } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import resumeSchema from 'resume-schema';
 import resume from '../johndoe.json';
 
@@ -17,14 +17,42 @@ export const meta: V2_MetaFunction = () => {
 export default function Index() {
   const jsonResume = JSON.stringify(resume, undefined, 2)
   const editorOptions: editor.IStandaloneEditorConstructionOptions = {
-
+    // TODO: ?
   }
 
   const editorRef: MutableRefObject<editor.IStandaloneCodeEditor | null> = useRef(null)
   const monacoRef: MutableRefObject<Monaco | null> = useRef(null);
 
   const [ isValid, setIsValid ] = useState<boolean>(true)
+  const [ isSaved, setIsSaved ] = useState<boolean>(false)
+  const [ hasChanged, setHasChanged ] = useState<boolean>(false)
   const [ nrOfErrors, setNrOfErrors ] = useState<number>(0)
+  const [ resumeData, setResumeData ] = useState<string | undefined>(jsonResume) // TODO: use typia for type validation and json functions
+
+  // useEffect( () => {
+  //   console.info( { isValid } )
+
+  //   if ( isValid && resumeData ) {
+  //     localStorage.setItem("resume", resumeData)
+
+  //     setIsSaved(true)
+  //   }
+
+  // }, [ isValid, resumeData ])
+
+  useEffect(() => {
+    setHasChanged(false)
+  }, [isSaved])
+
+  useEffect(() => {
+    if ( resumeData === jsonResume ) return setHasChanged(false)
+
+    setHasChanged(true)
+  }, [resumeData, jsonResume])
+
+  useEffect(()=>{
+    setIsValid(nrOfErrors === 0)
+  },[nrOfErrors])
 
   function handleEditorWillMount(monaco: Monaco) {
     console.info('editor will mount')
@@ -45,29 +73,38 @@ export default function Index() {
     console.info('editor did mount')
 
     editorRef.current = editor
-    monacoRef.current = monaco;
+    monacoRef.current = monaco
   }
 
   function handleEditorChange(value: string | undefined, evt: editor.IModelContentChangedEvent) {
     console.info('contents changed')
+
+    setResumeData( editorRef.current?.getValue())
   }
 
   function handleEditorValidation(markers: editor.IMarker[]) {
-    console.warn(`${markers.length} marker(s) for validation`)
+    console.info('handle validation')
+
+    console.warn({
+      isValid: markers?.length === 0,
+      nrOfErrors: markers?.length
+    })
 
     markers.forEach(marker =>
       console.error(marker.message)
     );
 
-    setIsValid(markers.length === 0)
     setNrOfErrors(markers.length)
   }
 
-
   function showValue() {
-    if ( editorRef.current === null ) return
+    if ( resumeData ) console.log( JSON.parse(resumeData))
+  }
 
-    console.log( JSON.parse(editorRef.current.getValue()))
+  function validate() {
+    const markers = monacoRef.current?.editor.getModelMarkers({owner:'json'})
+
+    handleEditorValidation(markers || [])
   }
 
   return (
@@ -78,19 +115,21 @@ export default function Index() {
       <button disabled onClick={showValue}>Save localStorage</button>&nbsp;
 
       <button disabled onClick={showValue}>Load API</button>&nbsp;
-      <button disabled onClick={showValue}>Save API</button>&nbsp;
+      <button disabled onClick={showValue}>Save API</button><br/>
 
       <button disabled onClick={showValue}>Download Word</button>&nbsp;
-      <button disabled onClick={showValue}>Download PDF</button>&nbsp;
+      <button disabled onClick={showValue}>Download PDF</button><br/>
 
+      <button onClick={validate}>Validate</button>&nbsp;
       <button onClick={showValue}>Log value</button><br/>
 
-
-      is valid: {isValid ? 'Yes' : 'No'} &nbsp;
-      # of errors: {nrOfErrors}<br/>
+      # errors:     {nrOfErrors}<br/>
+      is valid:     {isValid    === true ? '✅' : '❌'}&nbsp;
+      has changed:  {hasChanged === true ? '✅' : '❌'}&nbsp;
+      is saved:     {isSaved    === true ? '✅' : '❌'}
 
       <Editor
-        height="80vh"
+        height="70vh"
         width="50vw"
         language="json"
         theme="vs-dark"
